@@ -1,0 +1,710 @@
+#simulations dataset
+#1 generate gmm data
+set.seed(123)
+
+# Simulation settings
+N <- 50000
+K <- 2
+
+# True parameters
+lambda_true <- c(0.5, 0.5)
+mu_true <- c(50, 55)
+sigma_true <- c(1, 2)
+
+# Generate component membership
+z <- sample(
+  1:K,
+  size = N,
+  replace = TRUE,
+  prob = lambda_true
+)
+
+# Generate observations
+X <- rnorm(
+  N,
+  mean = mu_true[z],
+  sd = sigma_true[z]
+)
+
+# Check the generated data
+summary(X)
+
+# Check how many observations came from each component
+table(z)
+
+# Store true parameters
+true_parameters <- data.frame(
+  Component = 1:K,
+  Weight = lambda_true,
+  Mean = mu_true,
+  SD = sigma_true
+)
+
+true_parameters
+
+#2 KDE of Simulated Data
+plot(
+  density(X),
+  main = "KDE of Simulated GMM Data",
+  xlab = "X",
+  ylab = "Density",
+  lwd = 2
+)
+
+#3 Construct histogram
+B <- 10
+
+#a Fixed bin-width histogram
+fixed_breaks <- seq(
+  min(X),
+  max(X),
+  length.out = B + 1
+)
+
+fixed_hist <- hist(
+  X,
+  breaks = fixed_breaks,
+  plot = FALSE,
+  include.lowest = TRUE
+)
+
+fixed_histogram <- data.frame(
+  Bin = 1:B,
+  Lower = fixed_hist$breaks[-length(fixed_hist$breaks)],
+  Upper = fixed_hist$breaks[-1],
+  Count = fixed_hist$counts
+)
+
+fixed_histogram
+
+#b Variable bin-width histogram
+quantile_breaks <- quantile(
+  X,
+  probs = seq(0, 1, length.out = B + 1)
+)
+
+variable_hist <- hist(
+  X,
+  breaks = quantile_breaks,
+  plot = FALSE,
+  include.lowest = TRUE
+)
+
+variable_histogram <- data.frame(
+  Bin = 1:B,
+  Lower = variable_hist$breaks[-length(variable_hist$breaks)],
+  Upper = variable_hist$breaks[-1],
+  Count = variable_hist$counts
+)
+
+variable_histogram
+
+sum(fixed_histogram$Count)
+sum(variable_histogram$Count)
+
+fixed_histogram
+variable_histogram
+
+#4 visualize
+#a Plot Fixed-Width Histogram
+hist(
+  X,
+  breaks = fixed_breaks,
+  probability = TRUE,
+  main = "Fixed Bin-Width Histogram",
+  xlab = "X",
+  ylab = "Density",
+  border = "black"
+)
+
+lines(
+  density(X),
+  lwd = 2
+)
+
+#b Plot Variable Bin-Width Histogram
+hist(
+  X,
+  breaks = quantile_breaks,
+  probability = TRUE,
+  main = "Variable Bin-Width Histogram",
+  xlab = "X",
+  ylab = "Density",
+  border = "black"
+)
+
+lines(
+  density(X),
+  lwd = 2
+)
+
+#5 Compare KDE with True GMM Density
+# Grid of x-values
+x_grid <- seq(min(X), max(X), length.out = 1000)
+
+# True GMM density
+true_density <- lambda_true[1] *
+  dnorm(x_grid, mean = mu_true[1], sd = sigma_true[1]) +
+  lambda_true[2] *
+  dnorm(x_grid, mean = mu_true[2], sd = sigma_true[2])
+
+# KDE
+# Estimate KDE
+kde <- density(X)
+
+# Plot KDE
+plot(
+  kde,
+  main = "KDE and True GMM Density",
+  xlab = "X",
+  ylab = "Density",
+  lwd = 2,
+  lty = 1,
+  col = "black",
+  ylim = c(0, max(kde$y, true_density) * 1.15)
+)
+
+# Add true GMM density
+lines(
+  x_grid,
+  true_density,
+  lwd = 2,
+  lty = 2,
+  col = "black"
+)
+
+# Add weighted component densities
+lines(
+  x_grid,
+  lambda_true[1] *
+    dnorm(x_grid, mu_true[1], sigma_true[1]),
+  lwd = 1.5,
+  lty = 3,
+  col = "black"
+)
+
+lines(
+  x_grid,
+  lambda_true[2] *
+    dnorm(x_grid, mu_true[2], sigma_true[2]),
+  lwd = 1.5,
+  lty = 4,
+  col = "black"
+)
+
+# Add legend
+legend(
+  "topright",
+  inset = 0.02,
+  legend = c(
+    "KDE",
+    "True GMM",
+    "Component 1",
+    "Component 2"
+  ),
+  col = "black",
+  lty = c(1, 2, 3, 4),
+  lwd = c(2, 2, 1.5, 1.5),
+  cex = 0.85,
+  bty = "n"
+)
+
+  
+#6 Store Baseline Simulation Dataset
+
+baseline_dataset <- list(
+  X = X,
+  N = N,
+  K = K,
+  lambda_true = lambda_true,
+  mu_true = mu_true,
+  sigma_true = sigma_true,
+  fixed_histogram = fixed_histogram,
+  variable_histogram = variable_histogram
+)
+
+
+str(baseline_dataset)
+
+#7 DATASET A: Varying Sample Size
+sample_sizes <- c(
+  10^2,
+  10^3,
+  10^4,
+  10^5,
+  10^6,
+  10^7
+)
+
+B <- 10
+
+#a Function to generate GMM data
+generate_gmm <- function(N,
+                         lambda = c(0.5, 0.5),
+                         mu = c(50, 55),
+                         sigma = c(1, 2)) {
+  
+  K <- length(lambda)
+  
+  z <- sample(
+    1:K,
+    size = N,
+    replace = TRUE,
+    prob = lambda
+  )
+  
+  X <- rnorm(
+    N,
+    mean = mu[z],
+    sd = sigma[z]
+  )
+  
+  return(X)
+}
+
+#b Function to construct fixed and variable histograms
+
+construct_histograms <- function(X, B = 10) {
+  
+  # Fixed-width boundaries
+  fixed_breaks <- seq(
+    min(X),
+    max(X),
+    length.out = B + 1
+  )
+  
+  fixed_hist <- hist(
+    X,
+    breaks = fixed_breaks,
+    plot = FALSE,
+    include.lowest = TRUE
+  )
+  
+  fixed_histogram <- data.frame(
+    Bin = 1:B,
+    Lower = fixed_hist$breaks[-length(fixed_hist$breaks)],
+    Upper = fixed_hist$breaks[-1],
+    Count = fixed_hist$counts
+  )
+  
+  
+  # Variable-width boundaries using empirical quantiles
+  variable_breaks <- quantile(
+    X,
+    probs = seq(0, 1, length.out = B + 1),
+    names = FALSE
+  )
+  
+  variable_hist <- hist(
+    X,
+    breaks = variable_breaks,
+    plot = FALSE,
+    include.lowest = TRUE
+  )
+  
+  variable_histogram <- data.frame(
+    Bin = 1:B,
+    Lower = variable_hist$breaks[-length(variable_hist$breaks)],
+    Upper = variable_hist$breaks[-1],
+    Count = variable_hist$counts
+  )
+  
+  return(list(
+    fixed = fixed_histogram,
+    variable = variable_histogram
+  ))
+}
+
+#c Generate dataset A
+
+dataset_A <- list()
+
+for (N_current in sample_sizes) {
+  
+  cat("Generating N =", N_current, "\n")
+  
+  X_current <- generate_gmm(N_current)
+  
+  histograms <- construct_histograms(
+    X_current,
+    B = B
+  )
+  
+  dataset_A[[paste0("N_", N_current)]] <- list(
+    N = N_current,
+    K = 2,
+    lambda_true = c(0.5, 0.5),
+    mu_true = c(50, 55),
+    sigma_true = c(1, 2),
+    fixed_histogram = histograms$fixed,
+    variable_histogram = histograms$variable
+  )
+  
+  rm(X_current)
+  
+  gc()
+}
+
+#d Checking created datasets
+
+names(dataset_A)
+
+dataset_A[["N_1e+05"]]$fixed_histogram
+
+dataset_A[["N_1e+05"]]$variable_histogram
+
+data.frame(
+  Sample_Size = sapply(dataset_A, function(x) x$N),
+  Fixed_Total = sapply(
+    dataset_A,
+    function(x) sum(x$fixed_histogram$Count)
+  ),
+  Variable_Total = sapply(
+    dataset_A,
+    function(x) sum(x$variable_histogram$Count)
+  ),
+  Fixed_Bins = sapply(
+    dataset_A,
+    function(x) nrow(x$fixed_histogram)
+  ),
+  Variable_Bins = sapply(
+    dataset_A,
+    function(x) nrow(x$variable_histogram)
+  )
+)
+
+#8 DATASET B: Varying Number of Bins
+
+#a function to generate data
+set.seed(456)
+
+N_B <- 50000
+K_B <- 2
+
+lambda_B <- c(0.5, 0.5)
+mu_B <- c(50, 55)
+sigma_B <- c(1, 2)
+
+X_B <- generate_gmm(
+  N = N_B,
+  lambda = lambda_B,
+  mu = mu_B,
+  sigma = sigma_B
+)
+
+summary(X_B)
+
+#b define bin values
+B_values <- c(2, 3, 4, 5, 6, 7, 8, 9, 10, 25, 50, 100)
+
+#c construct histogram for every B
+dataset_B <- list()
+
+for (B_current in B_values) {
+  
+  cat("Constructing B =", B_current, "\n")
+  
+  histograms <- construct_histograms(
+    X_B,
+    B = B_current
+  )
+  
+  dataset_B[[paste0("B_", B_current)]] <- list(
+    N = N_B,
+    K = K_B,
+    B = B_current,
+    lambda_true = lambda_B,
+    mu_true = mu_B,
+    sigma_true = sigma_B,
+    fixed_histogram = histograms$fixed,
+    variable_histogram = histograms$variable
+  )
+}
+
+#d check datasets and validations
+names(dataset_B)
+
+data.frame(
+  B = sapply(dataset_B, function(x) x$B),
+  Fixed_Total = sapply(
+    dataset_B,
+    function(x) sum(x$fixed_histogram$Count)
+  ),
+  Variable_Total = sapply(
+    dataset_B,
+    function(x) sum(x$variable_histogram$Count)
+  ),
+  Fixed_Bins = sapply(
+    dataset_B,
+    function(x) nrow(x$fixed_histogram)
+  ),
+  Variable_Bins = sapply(
+    dataset_B,
+    function(x) nrow(x$variable_histogram)
+  )
+)
+
+#9 DATASET C: Varying Number of Components and Bins
+
+#a set up
+set.seed(789)
+
+N_C <- 50000
+
+K_values <- 2:7
+
+B_values <- c(2, 3, 4, 5, 6, 7, 8, 9, 10, 25, 50, 100)
+
+dataset_C <- list()
+
+#b generate
+for (K_current in K_values) {
+  
+  cat("Generating K =", K_current, "\n")
+  
+  lambda_C <- rep(1 / K_current, K_current)
+  mu_C <- 45 + 5 * (1:K_current)
+  sigma_C <- 1:K_current
+  
+  X_C <- generate_gmm(
+    N = N_C,
+    lambda = lambda_C,
+    mu = mu_C,
+    sigma = sigma_C
+  )
+  
+  for (B_current in B_values) {
+    
+    cat("   B =", B_current, "\n")
+    
+    histograms <- construct_histograms(
+      X_C,
+      B = B_current
+    )
+    
+    dataset_C[[paste0(
+      "K_", K_current, "_B_", B_current
+    )]] <- list(
+      N = N_C,
+      K = K_current,
+      B = B_current,
+      lambda_true = lambda_C,
+      mu_true = mu_C,
+      sigma_true = sigma_C,
+      fixed_histogram = histograms$fixed,
+      variable_histogram = histograms$variable
+    )
+  }
+  
+  rm(X_C)
+  gc()
+}
+
+#c checking
+length(dataset_C)
+names(dataset_C)
+dataset_C_check <- data.frame(
+  K = sapply(dataset_C, function(x) x$K),
+  B = sapply(dataset_C, function(x) x$B),
+  Fixed_Total = sapply(
+    dataset_C,
+    function(x) sum(x$fixed_histogram$Count)
+  ),
+  Variable_Total = sapply(
+    dataset_C,
+    function(x) sum(x$variable_histogram$Count)
+  ),
+  Fixed_Bins = sapply(
+    dataset_C,
+    function(x) nrow(x$fixed_histogram)
+  ),
+  Variable_Bins = sapply(
+    dataset_C,
+    function(x) nrow(x$variable_histogram)
+  )
+)
+
+dataset_C_check
+
+#10 plottingss
+#a function just for plots
+plot_histogram_representation <- function(hist_data,
+                                          main_title) {
+  
+  widths <- hist_data$Upper - hist_data$Lower
+  density_values <- hist_data$Count /
+    sum(hist_data$Count) /
+    widths
+  
+  plot(
+    NA,
+    xlim = range(c(hist_data$Lower, hist_data$Upper)),
+    ylim = c(0, max(density_values) * 1.15),
+    main = main_title,
+    xlab = "X",
+    ylab = "Density"
+  )
+  
+  rect(
+    hist_data$Lower,
+    0,
+    hist_data$Upper,
+    density_values
+  )
+}
+
+#b dataset A plot
+par(mfrow = c(3, 2))
+
+# N = 100
+plot_histogram_representation(
+  dataset_A[["N_100"]]$fixed_histogram,
+  "Fixed-width: N = 100"
+)
+
+plot_histogram_representation(
+  dataset_A[["N_100"]]$variable_histogram,
+  "Variable-width: N = 100"
+)
+
+# N = 100,000
+plot_histogram_representation(
+  dataset_A[["N_1e+05"]]$fixed_histogram,
+  "Fixed-width: N = 100,000"
+)
+
+plot_histogram_representation(
+  dataset_A[["N_1e+05"]]$variable_histogram,
+  "Variable-width: N = 100,000"
+)
+
+# N = 10,000,000
+plot_histogram_representation(
+  dataset_A[["N_1e+07"]]$fixed_histogram,
+  "Fixed-width: N = 10,000,000"
+)
+
+plot_histogram_representation(
+  dataset_A[["N_1e+07"]]$variable_histogram,
+  "Variable-width: N = 10,000,000"
+)
+
+par(mfrow = c(1, 1))
+
+#c dataset B plot
+par(mfrow = c(3, 2))
+
+# B = 2
+plot_histogram_representation(
+  dataset_B[["B_2"]]$fixed_histogram,
+  "Fixed-width: B = 2"
+)
+
+plot_histogram_representation(
+  dataset_B[["B_2"]]$variable_histogram,
+  "Variable-width: B = 2"
+)
+
+# B = 10
+plot_histogram_representation(
+  dataset_B[["B_10"]]$fixed_histogram,
+  "Fixed-width: B = 10"
+)
+
+plot_histogram_representation(
+  dataset_B[["B_10"]]$variable_histogram,
+  "Variable-width: B = 10"
+)
+
+# B = 100
+plot_histogram_representation(
+  dataset_B[["B_100"]]$fixed_histogram,
+  "Fixed-width: B = 100"
+)
+
+plot_histogram_representation(
+  dataset_B[["B_100"]]$variable_histogram,
+  "Variable-width: B = 100"
+)
+
+par(mfrow = c(1, 1))
+
+#d dataset C plot (B fixed at 10)
+par(mfrow = c(3, 2))
+
+# K = 2
+plot_histogram_representation(
+  dataset_C[["K_2_B_10"]]$fixed_histogram,
+  "Fixed-width: K = 2"
+)
+
+plot_histogram_representation(
+  dataset_C[["K_2_B_10"]]$variable_histogram,
+  "Variable-width: K = 2"
+)
+
+# K = 4
+plot_histogram_representation(
+  dataset_C[["K_4_B_10"]]$fixed_histogram,
+  "Fixed-width: K = 4"
+)
+
+plot_histogram_representation(
+  dataset_C[["K_4_B_10"]]$variable_histogram,
+  "Variable-width: K = 4"
+)
+
+# K = 7
+plot_histogram_representation(
+  dataset_C[["K_7_B_10"]]$fixed_histogram,
+  "Fixed-width: K = 7"
+)
+
+plot_histogram_representation(
+  dataset_C[["K_7_B_10"]]$variable_histogram,
+  "Variable-width: K = 7"
+)
+
+par(mfrow = c(1, 1))
+
+#11 save
+# =========================================================
+# SIMULATION SETTINGS
+# =========================================================
+
+simulation_settings <- list(
+  
+  # Dataset A: Varying sample size
+  dataset_A = list(
+    sample_sizes = c(10^2, 10^3, 10^4, 10^5, 10^6, 10^7),
+    K = 2,
+    B = 10
+  ),
+  
+  # Dataset B: Varying number of bins
+  dataset_B = list(
+    N = 50000,
+    K = 2,
+    B_values = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 25, 50, 100)
+  ),
+  
+  # Dataset C: Varying components and bins
+  dataset_C = list(
+    N = 50000,
+    K_values = 2:7,
+    B_values = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 25, 50, 100)
+  )
+
+)
+
+# =========================================================
+# SAVE SIMULATION DATASETS
+# =========================================================
+
+save(
+  dataset_A,
+  dataset_B,
+  dataset_C,
+  simulation_settings,
+  file = "simulation_datasets.RData")
+getwd()
